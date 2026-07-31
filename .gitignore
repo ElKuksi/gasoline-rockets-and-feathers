@@ -1,0 +1,23 @@
+# Credentials
+.env
+*.key
+
+# Local tooling / editor
+.vscode/
+.idea/
+.claude/
+CLAUDE.md
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Note: data/ is intentionally tracked. The processed files are small, and
+# committing them lets a reader reproduce every result without API keys.
