@@ -92,6 +92,19 @@ def get_series(series_id: str, start: str | None = None, end: str | None = None)
     return df
 
 
+def get_series_info(series_id: str) -> dict:
+    """Fetch a single series' metadata (not its observations).
+
+    Returns the raw metadata dict FRED reports for the series — notably `frequency`
+    (a human-readable string like "Weekly, Ending Friday" or "Daily") and
+    `frequency_short` (its one/two-letter code, e.g. "W", "D"), alongside `title`,
+    `observation_start`, and `observation_end`. Raises the same `RuntimeError` as every
+    other call in this module if `series_id` doesn't resolve.
+    """
+    body = _get("series", {"series_id": series_id})
+    return body["seriess"][0]
+
+
 def list_release_series(release_id: int) -> pd.DataFrame:
     """List every series belonging to a FRED release.
 
