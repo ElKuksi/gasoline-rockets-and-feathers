@@ -1,0 +1,19 @@
+[project]
+name = "gasoline-rockets-and-feathers"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+# Bare `pytest` runs everything NOT marked `integration` (the fast, no-network suite).
+# `pytest -m integration` runs only the network-hitting tests against the live FRED API.
+addopts = "-m 'not integration'"
+markers = [
+    "integration: hits the live FRED API over the network; excluded by default (run with -m integration)",
+]
