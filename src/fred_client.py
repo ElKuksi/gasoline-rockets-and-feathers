@@ -59,8 +59,8 @@ def _get(endpoint: str, params: dict) -> dict:
     return response.json()
 
 
-def get_series(series_id: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
-    """Fetch one FRED series' observations as a tidy DataFrame.
+def get_series_raw_observations(series_id: str, start: str | None = None, end: str | None = None) -> dict:
+    """Fetch one FRED series' observations exactly as FRED returns them — unparsed.
 
     Parameters
     ----------
@@ -68,6 +68,31 @@ def get_series(series_id: str, start: str | None = None, end: str | None = None)
     start, end : optional "YYYY-MM-DD" bounds (inclusive), passed through to FRED's
         `observation_start` / `observation_end`. Omit either to get FRED's full history
         on that side.
+
+    Returns
+    -------
+    The raw JSON body from FRED's `series/observations` endpoint: a dict with response
+    metadata (`count`, `units`, ...) and an `observations` list of `{date, value, ...}`
+    dicts, `value` still a string (including FRED's `"."` for missing). This is the
+    right thing to write to `data/raw/` untouched; see `parse_observations` for turning
+    it into a tidy DataFrame.
+    """
+    params: dict = {"series_id": series_id}
+    if start is not None:
+        params["observation_start"] = start
+    if end is not None:
+        params["observation_end"] = end
+    return _get("series/observations", params)
+
+
+def parse_observations(observations: list[dict]) -> pd.DataFrame:
+    """Turn a FRED `observations` list into a tidy DataFrame.
+
+    Parameters
+    ----------
+    observations : the `observations` list from a FRED `series/observations` response
+        (as returned by `get_series_raw_observations`), each item a dict with at least
+        `date` and `value` (a string).
 
     Returns
     -------
@@ -79,17 +104,33 @@ def get_series(series_id: str, start: str | None = None, end: str | None = None)
     non-numeric) into NaN, so `value` ends up float64 rather than a mixed-type object
     column with "." sitting in it.
     """
-    params: dict = {"series_id": series_id}
-    if start is not None:
-        params["observation_start"] = start
-    if end is not None:
-        params["observation_end"] = end
-
-    body = _get("series/observations", params)
-    df = pd.DataFrame(body["observations"])[["date", "value"]]
+    df = pd.DataFrame(observations)[["date", "value"]]
     df["date"] = pd.to_datetime(df["date"])
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
     return df
+
+
+def get_series(series_id: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
+    """Fetch one FRED series' observations as a tidy DataFrame.
+
+    A thin convenience wrapper: `get_series_raw_observations` + `parse_observations` in
+    one call. Use the two separately when you also need the untouched raw response (as
+    `fetch_series.py` does, to save it to `data/raw/` before parsing).
+
+    Parameters
+    ----------
+    series_id : the FRED series ID, e.g. "WCOILWTICO".
+    start, end : optional "YYYY-MM-DD" bounds (inclusive), passed through to FRED's
+        `observation_start` / `observation_end`. Omit either to get FRED's full history
+        on that side.
+
+    Returns
+    -------
+    DataFrame with exactly two columns, `date` (datetime64[ns]) and `value` (float64).
+    See `parse_observations` for the missing-value handling.
+    """
+    body = get_series_raw_observations(series_id, start=start, end=end)
+    return parse_observations(body["observations"])
 
 
 def get_series_info(series_id: str) -> dict:

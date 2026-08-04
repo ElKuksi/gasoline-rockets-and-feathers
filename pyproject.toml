@@ -11,9 +11,12 @@ build-backend = "setuptools.build_meta"
 packages = ["src"]
 
 [tool.pytest.ini_options]
-# Bare `pytest` runs everything NOT marked `integration` (the fast, no-network suite).
-# `pytest -m integration` runs only the network-hitting tests against the live FRED API.
-addopts = "-m 'not integration'"
+# Bare `pytest` runs only the fully hermetic suite (no network, no on-disk pipeline
+# output required). `pytest -m integration` hits the live FRED API. `pytest -m data`
+# checks data/processed/*.csv — fast, but requires fetch_series.py + build_tidy_tables.py
+# to have already been run.
+addopts = "-m 'not integration and not data'"
 markers = [
     "integration: hits the live FRED API over the network; excluded by default (run with -m integration)",
+    "data: reads data/processed/*.csv; fast but requires the pipeline to have run (run with -m data)",
 ]
