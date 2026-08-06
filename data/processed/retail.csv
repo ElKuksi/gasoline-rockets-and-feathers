@@ -864,6 +864,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASDESECW,PADD 1,diesel,,weekly-mon,4.894
 2026-07-20,GASDESECW,PADD 1,diesel,,weekly-mon,5.194
 2026-07-27,GASDESECW,PADD 1,diesel,,weekly-mon,5.354
+2026-08-03,GASDESECW,PADD 1,diesel,,weekly-mon,5.299
 2010-01-04,GASDESGCW,PADD 3,diesel,,weekly-mon,2.75
 2010-01-11,GASDESGCW,PADD 3,diesel,,weekly-mon,2.846
 2010-01-18,GASDESGCW,PADD 3,diesel,,weekly-mon,2.831
@@ -1729,6 +1730,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASDESGCW,PADD 3,diesel,,weekly-mon,4.546
 2026-07-20,GASDESGCW,PADD 3,diesel,,weekly-mon,4.942
 2026-07-27,GASDESGCW,PADD 3,diesel,,weekly-mon,5.087
+2026-08-03,GASDESGCW,PADD 3,diesel,,weekly-mon,5.141
 2010-01-04,GASDESMWW,PADD 2,diesel,,weekly-mon,2.771
 2010-01-11,GASDESMWW,PADD 2,diesel,,weekly-mon,2.844
 2010-01-18,GASDESMWW,PADD 2,diesel,,weekly-mon,2.834
@@ -2594,6 +2596,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASDESMWW,PADD 2,diesel,,weekly-mon,4.659
 2026-07-20,GASDESMWW,PADD 2,diesel,,weekly-mon,4.988
 2026-07-27,GASDESMWW,PADD 2,diesel,,weekly-mon,5.196
+2026-08-03,GASDESMWW,PADD 2,diesel,,weekly-mon,5.262
 2010-01-04,GASDESRMW,PADD 4,diesel,,weekly-mon,2.746
 2010-01-11,GASDESRMW,PADD 4,diesel,,weekly-mon,2.814
 2010-01-18,GASDESRMW,PADD 4,diesel,,weekly-mon,2.827
@@ -3459,6 +3462,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASDESRMW,PADD 4,diesel,,weekly-mon,4.6
 2026-07-20,GASDESRMW,PADD 4,diesel,,weekly-mon,4.935
 2026-07-27,GASDESRMW,PADD 4,diesel,,weekly-mon,5.141
+2026-08-03,GASDESRMW,PADD 4,diesel,,weekly-mon,5.285
 2010-01-04,GASDESW,US,diesel,,weekly-mon,2.797
 2010-01-11,GASDESW,US,diesel,,weekly-mon,2.879
 2010-01-18,GASDESW,US,diesel,,weekly-mon,2.87
@@ -4324,6 +4328,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASDESW,US,diesel,,weekly-mon,4.796
 2026-07-20,GASDESW,US,diesel,,weekly-mon,5.134
 2026-07-27,GASDESW,US,diesel,,weekly-mon,5.313
+2026-08-03,GASDESW,US,diesel,,weekly-mon,5.348
 2010-01-04,GASDESWCW,PADD 5,diesel,,weekly-mon,2.908
 2010-01-11,GASDESWCW,PADD 5,diesel,,weekly-mon,2.971
 2010-01-18,GASDESWCW,PADD 5,diesel,,weekly-mon,2.947
@@ -5189,6 +5194,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASDESWCW,PADD 5,diesel,,weekly-mon,5.55
 2026-07-20,GASDESWCW,PADD 5,diesel,,weekly-mon,5.877
 2026-07-27,GASDESWCW,PADD 5,diesel,,weekly-mon,6.067
+2026-08-03,GASDESWCW,PADD 5,diesel,,weekly-mon,6.13
 2010-01-04,GASREGCOVW,US,gasoline,conventional,weekly-mon,2.627
 2010-01-11,GASREGCOVW,US,gasoline,conventional,weekly-mon,2.717
 2010-01-18,GASREGCOVW,US,gasoline,conventional,weekly-mon,2.703
@@ -6054,6 +6060,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGCOVW,US,gasoline,conventional,weekly-mon,3.728
 2026-07-20,GASREGCOVW,US,gasoline,conventional,weekly-mon,3.863
 2026-07-27,GASREGCOVW,US,gasoline,conventional,weekly-mon,3.952
+2026-08-03,GASREGCOVW,US,gasoline,conventional,weekly-mon,3.935
 2010-01-04,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,2.653
 2010-01-11,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,2.745
 2010-01-18,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,2.751
@@ -6919,6 +6926,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,3.765
 2026-07-20,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,3.924
 2026-07-27,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,3.997
+2026-08-03,GASREGECW,PADD 1,gasoline,all formulations,weekly-mon,3.944
 2010-01-04,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,2.525
 2010-01-11,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,2.616
 2010-01-18,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,2.617
@@ -7784,6 +7792,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,3.423
 2026-07-20,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,3.588
 2026-07-27,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,3.69
+2026-08-03,GASREGGCW,PADD 3,gasoline,all formulations,weekly-mon,3.604
 2010-01-04,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,2.637
 2010-01-11,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,2.726
 2010-01-18,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,2.681
@@ -8649,6 +8658,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,3.662
 2026-07-20,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,3.78
 2026-07-27,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,3.882
+2026-08-03,GASREGMWW,PADD 2,gasoline,all formulations,weekly-mon,3.929
 2010-01-04,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,2.509
 2010-01-11,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,2.578
 2010-01-18,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,2.617
@@ -9514,6 +9524,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,3.823
 2026-07-20,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,3.956
 2026-07-27,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,4.083
+2026-08-03,GASREGRMW,PADD 4,gasoline,all formulations,weekly-mon,4.139
 2010-01-04,GASREGW,US,gasoline,all formulations,weekly-mon,2.665
 2010-01-11,GASREGW,US,gasoline,all formulations,weekly-mon,2.751
 2010-01-18,GASREGW,US,gasoline,all formulations,weekly-mon,2.739
@@ -10379,6 +10390,7 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGW,US,gasoline,all formulations,weekly-mon,3.855
 2026-07-20,GASREGW,US,gasoline,all formulations,weekly-mon,4.001
 2026-07-27,GASREGW,US,gasoline,all formulations,weekly-mon,4.096
+2026-08-03,GASREGW,US,gasoline,all formulations,weekly-mon,4.079
 2010-01-04,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,2.9
 2010-01-11,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,2.966
 2010-01-18,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,2.953
@@ -11244,3 +11256,4 @@ date,series_id,region,fuel,formulation,freq,price_usd_per_gallon
 2026-07-13,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,4.832
 2026-07-20,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,4.983
 2026-07-27,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,5.117
+2026-08-03,GASREGWCW,PADD 5,gasoline,all formulations,weekly-mon,5.13
