@@ -67,3 +67,84 @@ def cross_correlation(retail: pd.DataFrame, upstream: pd.DataFrame, max_lag: int
         rows.append({"lag": k, "correlation": correlation, "n_obs": n_obs})
 
     return pd.DataFrame(rows)
+
+
+def up_down_response(retail: pd.DataFrame, upstream: pd.DataFrame, horizon: int = 8, mode: str = "weekly") -> pd.DataFrame:
+    """Mean retail response over the weeks following an up-week vs. a down-week upstream.
+
+    Aligns `retail` to `upstream` via `align_retail_to_upstream` (the same single
+    permitted join, per ADR-0002) and takes first differences of both, exactly as
+    `cross_correlation` does. Every week is then classified by the *sign* of
+    `delta_upstream` alone — an "up-week" (`delta_upstream > 0`) or a "down-week"
+    (`delta_upstream < 0`); a week with `delta_upstream` exactly 0 falls into neither
+    group. For each horizon h in 0..horizon, this computes the mean, count, and standard
+    error of `delta_retail_{t+h}` separately across the up-week group and the down-week
+    group — i.e. "h weeks after an up-week, how much did retail typically move; h weeks
+    after a down-week, how much did it typically move."
+
+    THIS IS DESCRIPTIVE ONLY — it does not, and cannot, establish asymmetry on its own.
+    It compares the two groups purely by the *direction* of the upstream move, never its
+    *size*. If up-weeks in this sample happen to be systematically larger or smaller
+    swings than down-weeks (a real possibility, not accounted for here at all), that
+    size difference alone could produce a gap between `mean_after_up` and
+    `mean_after_down` even if retail responded with perfect symmetry to every dollar of
+    crude movement regardless of direction. Establishing genuine "rockets and feathers"
+    asymmetry requires controlling for move size — the asymmetric distributed-lag model
+    in Stage 3, with separate coefficients on positive and negative `delta_upstream`, is
+    what actually does that. This function is a first look, not a test, and its output
+    should never be read as evidence of asymmetry by itself.
+
+    It's also worth checking, before trusting even the descriptive picture, whether
+    `n_up` and `n_down` are roughly balanced — if upstream rose in (say) 60% of weeks in
+    this sample, the up/down comparison is already working from a lopsided base rate,
+    and that skew belongs in any interpretation of the numbers below.
+
+    Parameters
+    ----------
+    retail, upstream : DataFrames with `date` (datetime64) and `value` (float64), exactly
+        as `align_retail_to_upstream` expects.
+    horizon : largest number of weeks ahead to compute, inclusive. Default 8.
+    mode : passed straight through to `align_retail_to_upstream` — `"weekly"` or
+        `"daily_pit"`.
+
+    Returns
+    -------
+    DataFrame with one row per horizon 0..horizon and columns:
+    - `horizon` — h, in weeks after the up/down week.
+    - `mean_after_up`, `mean_after_down` — mean `delta_retail_{t+h}` within each group.
+    - `n_up`, `n_down` — how many valid observations each mean rests on. Shrinks as h
+      grows, the same way `cross_correlation`'s `n_obs` does: shifting `delta_retail` by
+      h rows loses its last h observations.
+    - `se_up`, `se_down` — standard error of each mean (sample standard deviation,
+      `ddof=1`, over sqrt(n)). `NaN` wherever the corresponding n is 0.
+    """
+    merged = align_retail_to_upstream(retail, upstream, mode=mode)
+
+    delta_retail = merged["value_retail"].diff()
+    delta_upstream = merged["value_upstream"].diff()
+
+    up_mask = delta_upstream > 0
+    down_mask = delta_upstream < 0
+
+    rows = []
+    for h in range(horizon + 1):
+        future_delta_retail = delta_retail.shift(-h)
+
+        up_values = future_delta_retail[up_mask & future_delta_retail.notna()]
+        down_values = future_delta_retail[down_mask & future_delta_retail.notna()]
+        n_up = len(up_values)
+        n_down = len(down_values)
+
+        rows.append(
+            {
+                "horizon": h,
+                "mean_after_up": up_values.mean(),
+                "mean_after_down": down_values.mean(),
+                "n_up": n_up,
+                "n_down": n_down,
+                "se_up": up_values.std(ddof=1) / n_up**0.5 if n_up > 0 else float("nan"),
+                "se_down": down_values.std(ddof=1) / n_down**0.5 if n_down > 0 else float("nan"),
+            }
+        )
+
+    return pd.DataFrame(rows)
