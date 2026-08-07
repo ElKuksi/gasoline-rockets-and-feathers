@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 
 from src.point_in_time import align_retail_to_upstream
 
@@ -113,3 +114,60 @@ def build_design_matrix(retail: pd.DataFrame, upstream: pd.DataFrame, K: int, mo
     )
 
     return design
+
+
+def _infer_k(design: pd.DataFrame) -> int:
+    """The largest lag K implied by a design matrix's own `d_up_lag*`/`d_down_lag*`
+    column names — read back from the DataFrame rather than passed in separately, so
+    `fit_distributed_lag` can't be called with a `maxlags` default that silently
+    disagrees with the design it's actually fitting.
+
+    Raises `ValueError` if the up-lags and down-lags present don't match — `design`
+    isn't a valid `build_design_matrix()` output if they don't.
+    """
+    up_lags = sorted(int(col.removeprefix("d_up_lag")) for col in design.columns if col.startswith("d_up_lag"))
+    down_lags = sorted(int(col.removeprefix("d_down_lag")) for col in design.columns if col.startswith("d_down_lag"))
+    if up_lags != down_lags:
+        raise ValueError(f"design matrix's up-lags {up_lags} and down-lags {down_lags} don't match — not a valid build_design_matrix() output")
+    return up_lags[-1]
+
+
+def fit_distributed_lag(design: pd.DataFrame, maxlags: int | None = None):
+    """Fit `d_retail` on every lagged up/down regressor in `design`, with a constant,
+    using HAC (Newey-West) standard errors.
+
+    Why HAC, not OLS's default standard errors:
+    a distributed-lag model's residuals are almost certainly autocorrelated across nearby weeks (this
+    week's unexplained retail move is not independent of last week's — persistence in
+    price-setting, overlapping demand/supply conditions), and OLS's default standard
+    errors assume independence, so without HAC the model would understate its own
+    uncertainty and make the up-vs-down coefficient difference look more significant than
+    the data actually supports.
+
+    `maxlags` (the HAC correction's own lag window) defaults to K — the design's own
+    largest regressor lag, read back from its column names via `_infer_k` — on the
+    reasoning that if the model itself claims price effects can persist K weeks out, the
+    correction for autocorrelation in its errors should look at least that far too. Pass
+    an explicit `maxlags` to override this.
+
+    Parameters
+    ----------
+    design : a `build_design_matrix()` output — must contain `d_retail` and one or more
+        `d_up_lag*`/`d_down_lag*` columns (any other columns, e.g. `date`, are ignored as
+        regressors).
+    maxlags : the HAC lag window. Defaults to `design`'s own K if not given.
+
+    Returns
+    -------
+    The fitted `statsmodels` results object, returned exactly as `.fit()` produces it —
+    no wrapping, no partial extraction — so `.summary()`, `.params`, `.bse`, etc. all
+    work normally on it.
+    """
+    if maxlags is None:
+        maxlags = _infer_k(design)
+
+    regressor_columns = [col for col in design.columns if col not in ("date", "d_retail")]
+    y = design["d_retail"]
+    X = sm.add_constant(design[regressor_columns])
+
+    return sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags})
