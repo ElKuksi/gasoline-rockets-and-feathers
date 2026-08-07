@@ -171,3 +171,127 @@ def fit_distributed_lag(design: pd.DataFrame, maxlags: int | None = None):
     X = sm.add_constant(design[regressor_columns])
 
     return sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags})
+
+
+def _restriction_vector(res, positive_names: set[str] = frozenset(), negative_names: set[str] = frozenset()) -> np.ndarray:
+    """Build a `t_test` restriction row-vector for `res`: +1 at each name in
+    `positive_names`, -1 at each in `negative_names`, 0 everywhere else (including the
+    constant).
+
+    Built by looking up `res.params.index` (the fitted model's own parameter names).
+    """
+    r = pd.Series(0.0, index=res.params.index)
+    r[sorted(positive_names)] = 1.0
+    r[sorted(negative_names)] = -1.0
+    return r.to_numpy()
+
+
+def cumulative_passthrough(res, K: int) -> pd.DataFrame:
+    """Running-sum pass-through of an up-move and of a down-move, through each horizon
+    h = 0..K, with a standard error and 95% interval at each h.
+
+    `cum_up(h) = sum(d_up_lag0..d_up_lag{h})` is the fraction of a crude *increase* that
+    has reached the pump by h weeks out (dimensionless: $/gal retail per $/gal crude —
+    see `test_asymmetry`'s docstring for the units discussion), and `cum_down(h)` is the
+    same for a decrease. Watching how the gap between the two changes as h grows from 0
+    to K is the actual "is the difference about speed or about a permanently different
+    total" question this whole model exists to answer.
+
+    Standard errors are NOT computed by adding the individual lag coefficients' SEs —
+    `Var(sum) = sum(Var) + 2*sum(Cov)` for correlated estimators, and adjacent-lag
+    coefficients in a distributed-lag model are correlated (they're estimated from
+    overlapping, autocorrelated regressors). Adding SEs directly ignores every Cov term
+    and is wrong in general. `res.t_test(r)` with a restriction vector `r` instead uses
+    `res`'s full coefficient covariance matrix (`res.cov_params()`), which is the way
+    to get the variance of a sum of correlated coefficients, this is why `t_test`, 
+    not manual arithmetic on `res.params`/`res.bse`, is used throughout.
+
+    Parameters
+    ----------
+    res : a fitted `statsmodels` results object — the output of `fit_distributed_lag`,
+        with parameter names `d_up_lag0..d_up_lagK`, `d_down_lag0..d_down_lagK`.
+    K : the largest lag to accumulate through. Must match (or be <=) the lags actually
+        present in `res`'s parameters — `_restriction_vector` will raise a `KeyError`
+        naming the missing parameter if it doesn't.
+
+    Returns
+    -------
+    DataFrame with one row per horizon 0..K and columns `horizon`, `cum_up`,
+    `cum_up_se`, `cum_up_lo`, `cum_up_hi`, `cum_down`, `cum_down_se`, `cum_down_lo`,
+    `cum_down_hi` (the `_lo`/`_hi` pair is the 95% CI from `t_test`'s default alpha=0.05).
+    """
+    rows = []
+    for h in range(K + 1):
+        up_names = {f"d_up_lag{lag}" for lag in range(h + 1)}
+        down_names = {f"d_down_lag{lag}" for lag in range(h + 1)}
+
+        t_up = res.t_test(_restriction_vector(res, positive_names=up_names))
+        t_down = res.t_test(_restriction_vector(res, positive_names=down_names))
+
+        ci_up = np.asarray(t_up.conf_int())
+        ci_down = np.asarray(t_down.conf_int())
+
+        rows.append(
+            {
+                "horizon": h,
+                "cum_up": float(np.asarray(t_up.effect).item()),
+                "cum_up_se": float(np.asarray(t_up.sd).item()),
+                "cum_up_lo": float(ci_up[0, 0]),
+                "cum_up_hi": float(ci_up[0, 1]),
+                "cum_down": float(np.asarray(t_down.effect).item()),
+                "cum_down_se": float(np.asarray(t_down.sd).item()),
+                "cum_down_lo": float(ci_down[0, 0]),
+                "cum_down_hi": float(ci_down[0, 1]),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def test_asymmetry(res, K: int, horizon: int | None = None) -> dict:
+    """Test whether cumulative up-pass-through and down-pass-through differ, through a
+    given horizon: estimate, standard error, 95% CI, and p-value for (sum(beta_up_0..h) -
+    sum(beta_down_0..h)), via `res.t_test` on a single +1/-1 restriction vector.
+
+    Both `d_retail` and `d_upstream` are in $/gallon (retail's native unit; crude's
+    $/barrel is already converted to $/gal upstream of this module, see
+    `build_tidy_tables.py`), so every coefficient here is a $/gal-per-$/gal ratio, i.e.
+    dimensionless: `cum_up(h) = 0.8` means 80% of a crude increase has reached the pump
+    by week h. That makes the difference tested here directly interpretable the same way
+    — a positive estimate means up-pass-through is running ahead of down-pass-through
+    through that horizon (the "rockets" side of rockets-and-feathers).
+
+    Parameters
+    ----------
+    res : a fitted `statsmodels` results object (e.g. from `fit_distributed_lag`), with
+        parameter names `d_up_lag0..d_up_lagK`, `d_down_lag0..d_down_lagK`.
+    K : the largest lag present in `res`'s parameters.
+    horizon : how many lags (0..horizon) to accumulate before comparing. Defaults to K
+        (the full cumulative pass-through). Must be between 0 and K.
+
+    Returns
+    -------
+    dict with `horizon`, `estimate` (the point estimate of the up-minus-down
+    difference), `se`, `ci_lo`, `ci_hi` (95% CI, `t_test`'s default alpha=0.05), and
+    `p_value` (two-sided, testing the difference against 0).
+    """
+    if horizon is None:
+        horizon = K
+    if not 0 <= horizon <= K:
+        raise ValueError(f"horizon must be between 0 and K={K}, got {horizon}")
+
+    up_names = {f"d_up_lag{lag}" for lag in range(horizon + 1)}
+    down_names = {f"d_down_lag{lag}" for lag in range(horizon + 1)}
+    restriction = _restriction_vector(res, positive_names=up_names, negative_names=down_names)
+
+    t = res.t_test(restriction)
+    ci = np.asarray(t.conf_int())
+
+    return {
+        "horizon": horizon,
+        "estimate": float(np.asarray(t.effect).item()),
+        "se": float(np.asarray(t.sd).item()),
+        "ci_lo": float(ci[0, 0]),
+        "ci_hi": float(ci[0, 1]),
+        "p_value": float(np.asarray(t.pvalue).item()),
+    }
