@@ -116,20 +116,12 @@ def build_design_matrix(retail: pd.DataFrame, upstream: pd.DataFrame, K: int, mo
     return design
 
 
-def _infer_k(design: pd.DataFrame) -> int:
-    """The largest lag K implied by a design matrix's own `d_up_lag*`/`d_down_lag*`
-    column names — read back from the DataFrame rather than passed in separately, so
-    `fit_distributed_lag` can't be called with a `maxlags` default that silently
-    disagrees with the design it's actually fitting.
-
-    Raises `ValueError` if the up-lags and down-lags present don't match — `design`
-    isn't a valid `build_design_matrix()` output if they don't.
-    """
-    up_lags = sorted(int(col.removeprefix("d_up_lag")) for col in design.columns if col.startswith("d_up_lag"))
-    down_lags = sorted(int(col.removeprefix("d_down_lag")) for col in design.columns if col.startswith("d_down_lag"))
-    if up_lags != down_lags:
-        raise ValueError(f"design matrix's up-lags {up_lags} and down-lags {down_lags} don't match — not a valid build_design_matrix() output")
-    return up_lags[-1]
+# Newey-West's own rule-of-thumb lag window, floor(4*(T/100)**(2/9)), evaluated at
+# T=860 (this project's typical weekly sample size across all three supply-chain links,
+# 2010-present): 4*(8.6)**(2/9) = 6.45 -> 6. This is a SAMPLE-SIZE-based constant, not
+# tied to any particular model's K — see fit_distributed_lag's docstring for why those
+# two things must not be conflated.
+DEFAULT_HAC_MAXLAGS = 6
 
 
 def fit_distributed_lag(design: pd.DataFrame, maxlags: int | None = None):
@@ -144,18 +136,26 @@ def fit_distributed_lag(design: pd.DataFrame, maxlags: int | None = None):
     uncertainty and make the up-vs-down coefficient difference look more significant than
     the data actually supports.
 
-    `maxlags` (the HAC correction's own lag window) defaults to K — the design's own
-    largest regressor lag, read back from its column names via `_infer_k` — on the
-    reasoning that if the model itself claims price effects can persist K weeks out, the
-    correction for autocorrelation in its errors should look at least that far too. Pass
-    an explicit `maxlags` to override this.
+    `maxlags` (the HAC correction's own lag window) defaults to `DEFAULT_HAC_MAXLAGS`
+    (6) — the standard Newey-West rule-of-thumb, `floor(4*(T/100)**(2/9))`, evaluated at
+    this project's typical sample size (T~860 weekly observations). It does NOT default
+    to `design`'s own K, and that's deliberate, not an oversight: `maxlags` is about how
+    far RESIDUAL autocorrelation plausibly reaches, a property of the data's own
+    time-series structure (persistence, overlapping conditions week to week) — while K is
+    about how many REGRESSOR lags a particular model happens to include, a modelling
+    choice that differs link to link (e.g. this project's crude->wholesale link uses
+    K=1, wholesale->retail uses K=6). Tying maxlags to K would silently under-correct
+    every short-K model — a K=1 model would get maxlags=1, nowhere near enough lags to
+    catch real autocorrelation in weekly price-change residuals, regardless of how few
+    regressor lags that particular link needed. Pass an explicit `maxlags` to override
+    the default (e.g. to sensitivity-check it, as notebooks/05_asymmetry.ipynb does).
 
     Parameters
     ----------
     design : a `build_design_matrix()` output — must contain `d_retail` and one or more
         `d_up_lag*`/`d_down_lag*` columns (any other columns, e.g. `date`, are ignored as
         regressors).
-    maxlags : the HAC lag window. Defaults to `design`'s own K if not given.
+    maxlags : the HAC lag window. Defaults to `DEFAULT_HAC_MAXLAGS` if not given.
 
     Returns
     -------
@@ -164,7 +164,7 @@ def fit_distributed_lag(design: pd.DataFrame, maxlags: int | None = None):
     work normally on it.
     """
     if maxlags is None:
-        maxlags = _infer_k(design)
+        maxlags = DEFAULT_HAC_MAXLAGS
 
     regressor_columns = [col for col in design.columns if col not in ("date", "d_retail")]
     y = design["d_retail"]
