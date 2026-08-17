@@ -12,11 +12,12 @@ whether they share a common stochastic trend.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller, coint
 
-from src.asymmetry import DEFAULT_HAC_MAXLAGS, build_design_matrix
+from src.asymmetry import DEFAULT_HAC_MAXLAGS, _restriction_vector, build_design_matrix
 from src.point_in_time import align_retail_to_upstream
 
 
@@ -170,3 +171,30 @@ def fit_ecm(design: pd.DataFrame, maxlags: int = DEFAULT_HAC_MAXLAGS):
     X = sm.add_constant(design[regressor_columns])
 
     return sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags})
+
+
+def test_adjustment_asymmetry(res) -> dict:
+    """Test whether the two speed-of-adjustment coefficients differ: lambda+
+    (`u_pos_lag1`) vs lambda- (`u_neg_lag1`). Reuses `asymmetry._restriction_vector` and
+    `t_test`, same technique `test_asymmetry` uses for beta+ vs beta-, same reason 
+    the two coefficients are correlated, so their SEs can't just be added.
+
+    Parameters
+    ----------
+    res : a fitted `fit_ecm` results object.
+
+    Returns
+    -------
+    dict with `estimate` (lambda+ minus lambda-), `se`, `ci_lo`, `ci_hi`, `p_value`.
+    """
+    restriction = _restriction_vector(res, positive_names={"u_pos_lag1"}, negative_names={"u_neg_lag1"})
+    t = res.t_test(restriction)
+    ci = np.asarray(t.conf_int())
+
+    return {
+        "estimate": float(np.asarray(t.effect).item()),
+        "se": float(np.asarray(t.sd).item()),
+        "ci_lo": float(ci[0, 0]),
+        "ci_hi": float(ci[0, 1]),
+        "p_value": float(np.asarray(t.pvalue).item()),
+    }
