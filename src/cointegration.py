@@ -16,6 +16,7 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller, coint
 
+from src.asymmetry import DEFAULT_HAC_MAXLAGS, build_design_matrix
 from src.point_in_time import align_retail_to_upstream
 
 
@@ -106,3 +107,66 @@ def engle_granger(retail: pd.DataFrame, upstream: pd.DataFrame, mode: str = "wee
         "gamma1": gamma1,
         "residuals": residuals,
     }
+
+
+def build_ecm_design_matrix(
+    retail: pd.DataFrame, upstream: pd.DataFrame, K: int, gamma0: float, gamma1: float, mode: str = "weekly"
+) -> pd.DataFrame:
+    """Design matrix for the asymmetric error-correction model: `build_design_matrix`'s
+    short-run `d_up_lag*`/`d_down_lag*` columns, plus the lagged equilibrium error.
+
+    `gamma0`/`gamma1` (from `engle_granger`) define the long-run relationship
+    `retail_level = gamma0 + gamma1 * upstream_level + u`. We compute `u` at each aligned
+    date, then use `u_{t-1}` one period before since the error-correction term has
+    to be predetermined, not contemporaneous with the `d_retail_t` it's predicting.
+    `u_pos_lag1`/`u_neg_lag1` split it into its positive and negative parts the same way
+    `d_up`/`d_down` split `delta_upstream`: not a sample split, two views of one series
+    that sum back to `u_{t-1}`, so the fitted coefficients on each (`lambda+`/`lambda-`)
+    are separate speed-of-adjustment estimates for "priced too high" vs. "priced too low".
+
+    Parameters
+    ----------
+    retail, upstream : as `build_design_matrix` expects.
+    K : largest short-run lag, passed through to `build_design_matrix`.
+    gamma0, gamma1 : long-run intercept and slope.
+    mode : passed through to `build_design_matrix`/`align_retail_to_upstream`.
+
+    Returns
+    -------
+    `build_design_matrix`'s output with `u_pos_lag1`, `u_neg_lag1` added.
+    """
+    design = build_design_matrix(retail, upstream, K, mode=mode)
+
+    merged = align_retail_to_upstream(retail, upstream, mode=mode)
+    u_lag1 = (merged["value_retail"] - gamma0 - gamma1 * merged["value_upstream"]).shift(1)
+    levels = pd.DataFrame({"date": merged["date"], "u_pos_lag1": u_lag1.clip(lower=0), "u_neg_lag1": u_lag1.clip(upper=0)})
+
+    design = design.merge(levels, on="date", how="left")
+
+    assert design[["u_pos_lag1", "u_neg_lag1"]].notna().all().all(), (
+        "u_pos_lag1/u_neg_lag1 has NaN after merge -- build_design_matrix's own lag-based "
+        "row-dropping should already exclude the one leading NaN row the u_{t-1} shift produces"
+    )
+
+    return design
+
+
+def fit_ecm(design: pd.DataFrame, maxlags: int = DEFAULT_HAC_MAXLAGS):
+    """Fit `d_retail` on the short-run lags plus `u_pos_lag1`/`u_neg_lag1`, with HAC
+    (Newey-West) standard errors same pattern as `fit_distributed_lag`, same
+    reasoning for `maxlags` defaulting to `DEFAULT_HAC_MAXLAGS`.
+
+    Parameters
+    ----------
+    design : a `build_ecm_design_matrix()` output.
+    maxlags : HAC lag window.
+
+    Returns
+    -------
+    The fitted statsmodels results object, unwrapped.
+    """
+    regressor_columns = [col for col in design.columns if col not in ("date", "d_retail")]
+    y = design["d_retail"]
+    X = sm.add_constant(design[regressor_columns])
+
+    return sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags})
