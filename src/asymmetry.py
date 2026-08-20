@@ -173,7 +173,7 @@ def fit_distributed_lag(design: pd.DataFrame, maxlags: int | None = None):
     return sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags})
 
 
-def _restriction_vector(res, positive_names: set[str] = frozenset(), negative_names: set[str] = frozenset()) -> np.ndarray:
+def restriction_vector(res, positive_names: set[str] = frozenset(), negative_names: set[str] = frozenset()) -> np.ndarray:
     """Build a `t_test` restriction row-vector for `res`: +1 at each name in
     `positive_names`, -1 at each in `negative_names`, 0 everywhere else (including the
     constant).
@@ -211,7 +211,7 @@ def cumulative_passthrough(res, K: int) -> pd.DataFrame:
     res : a fitted `statsmodels` results object — the output of `fit_distributed_lag`,
         with parameter names `d_up_lag0..d_up_lagK`, `d_down_lag0..d_down_lagK`.
     K : the largest lag to accumulate through. Must match (or be <=) the lags actually
-        present in `res`'s parameters — `_restriction_vector` will raise a `KeyError`
+        present in `res`'s parameters — `restriction_vector` will raise a `KeyError`
         naming the missing parameter if it doesn't.
 
     Returns
@@ -225,8 +225,8 @@ def cumulative_passthrough(res, K: int) -> pd.DataFrame:
         up_names = {f"d_up_lag{lag}" for lag in range(h + 1)}
         down_names = {f"d_down_lag{lag}" for lag in range(h + 1)}
 
-        t_up = res.t_test(_restriction_vector(res, positive_names=up_names))
-        t_down = res.t_test(_restriction_vector(res, positive_names=down_names))
+        t_up = res.t_test(restriction_vector(res, positive_names=up_names))
+        t_down = res.t_test(restriction_vector(res, positive_names=down_names))
 
         ci_up = np.asarray(t_up.conf_int())
         ci_down = np.asarray(t_down.conf_int())
@@ -282,7 +282,7 @@ def test_asymmetry(res, K: int, horizon: int | None = None) -> dict:
 
     up_names = {f"d_up_lag{lag}" for lag in range(horizon + 1)}
     down_names = {f"d_down_lag{lag}" for lag in range(horizon + 1)}
-    restriction = _restriction_vector(res, positive_names=up_names, negative_names=down_names)
+    restriction = restriction_vector(res, positive_names=up_names, negative_names=down_names)
 
     t = res.t_test(restriction)
     ci = np.asarray(t.conf_int())

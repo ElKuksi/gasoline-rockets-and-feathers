@@ -8,10 +8,14 @@ identity survives the interaction, non-contiguous input is rejected, and a restr
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
-from src.event_study import build_event_interaction_design
+from src.asymmetry import fit_distributed_lag
+from src.event_study import build_event_interaction_design, cumulative_passthrough_by_regime
+from src.event_study import test_event_asymmetry_change as event_asymmetry_change
+from src.event_study import test_event_interaction_joint as event_interaction_joint
 
 
 def _weekly_fixture(n_mondays: int, prices: list[float]) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -107,3 +111,87 @@ def test_interact_lags_subset():
     interaction_cols = [c for c in design.columns if c.endswith("_event") and c != "event"]
     assert sorted(interaction_cols) == ["d_down_lag0_event", "d_down_lag1_event", "d_up_lag0_event", "d_up_lag1_event"]
     assert "d_up_lag2_event" not in design.columns
+
+
+def _fit_small_event_model(n_mondays: int, K: int, event_start_idx: int, event_end_idx: int, interact_lags: list[int] | None = None):
+    """A fitted event-interaction model on a small hermetic series -- unlike
+    `_weekly_fixture`'s constant retail value (fine for testing construction, useless
+    for fitting: a constant series differences to all zeros), retail here follows
+    upstream with a damped, noisy response so the fit has genuine residual variance.
+    `event_start`/`event_end` are given as positions into the retail date range rather
+    than hardcoded dates, so the window always lands inside the design regardless of K.
+    """
+    rng = np.random.default_rng(0)
+    mondays = pd.date_range("2024-01-01", periods=n_mondays, freq="7D")
+    fridays = mondays - pd.Timedelta(days=3)
+
+    upstream_prices = [10.0]
+    for i in range(n_mondays - 1):
+        upstream_prices.append(upstream_prices[-1] + (1.0 if i % 2 == 0 else -0.6))
+
+    retail_prices = [20.0]
+    for i in range(1, n_mondays):
+        retail_prices.append(retail_prices[-1] + 0.5 * (upstream_prices[i] - upstream_prices[i - 1]) + rng.normal(0, 0.05))
+
+    retail = pd.DataFrame({"date": mondays, "value": retail_prices})
+    upstream = pd.DataFrame({"date": fridays, "value": upstream_prices})
+
+    event_start = retail["date"].iloc[event_start_idx]
+    event_end = retail["date"].iloc[event_end_idx]
+
+    design = build_event_interaction_design(retail, upstream, K=K, event_start=event_start, event_end=event_end, interact_lags=interact_lags)
+    return fit_distributed_lag(design, maxlags=2)
+
+
+def test_joint_test_discovers_interaction_names_from_params():
+    """With `interact_lags=[0]`, `test_event_interaction_joint` must test exactly two
+    restrictions (one up, one down) -- not `2*(K+1)`. Catches a regression to
+    K-derived hardcoding of the interaction names.
+    """
+    res = _fit_small_event_model(n_mondays=40, K=3, event_start_idx=20, event_end_idx=25, interact_lags=[0])
+
+    result = event_interaction_joint(res)
+
+    assert result["n_restrictions"] == 2
+    assert sorted(result["interaction_names"]) == ["d_down_lag0_event", "d_up_lag0_event"]
+
+
+def test_asymmetry_change_restriction_signs():
+    """The restriction behind `test_event_asymmetry_change` puts +1 weight on every
+    up-interaction coefficient and -1 on every down-interaction coefficient, and
+    nothing else -- checked via the returned estimate, which must equal exactly
+    `Sum(delta+) - Sum(delta-)` computed directly from `res.params`.
+    """
+    res = _fit_small_event_model(n_mondays=40, K=3, event_start_idx=20, event_end_idx=25, interact_lags=list(range(4)))
+
+    result = event_asymmetry_change(res)
+
+    up_sum = sum(res.params[name] for name in res.params.index if name.startswith("d_up_lag") and name.endswith("_event"))
+    down_sum = sum(res.params[name] for name in res.params.index if name.startswith("d_down_lag") and name.endswith("_event"))
+    assert abs(result["estimate"] - (up_sum - down_sum)) < 1e-10
+
+
+def test_cumulative_by_regime_event_equals_normal_plus_delta():
+    """`cum_up_event(h) - cum_up_normal(h)` must equal the sum of delta+ coefficients
+    through h, at every horizon where interaction columns exist -- checks the
+    restriction vectors are built correctly, not merely that the function runs.
+    """
+    K = 3
+    res = _fit_small_event_model(n_mondays=40, K=K, event_start_idx=20, event_end_idx=25, interact_lags=list(range(K + 1)))
+
+    cum = cumulative_passthrough_by_regime(res, K)
+
+    for h in range(K + 1):
+        delta_sum = sum(res.params[f"d_up_lag{k}_event"] for k in range(h + 1))
+        row = cum.loc[cum["horizon"] == h].iloc[0]
+        assert abs((row["cum_up_event"] - row["cum_up_normal"]) - delta_sum) < 1e-10
+
+
+def test_main_effect_dummy_present_in_fit():
+    """`event` must appear in `res.params.index` after fitting a design built by
+    `build_event_interaction_design` -- guards the "never fit interactions without the
+    main effect" rule.
+    """
+    res = _fit_small_event_model(n_mondays=40, K=2, event_start_idx=15, event_end_idx=20, interact_lags=[0, 1])
+
+    assert "event" in res.params.index

@@ -9,9 +9,10 @@ versus the ordinary response the rest of the sample identifies.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
-from src.asymmetry import build_design_matrix
+from src.asymmetry import build_design_matrix, restriction_vector
 
 
 def build_event_interaction_design(
@@ -27,8 +28,11 @@ def build_event_interaction_design(
     short-run design.
 
     `event` is 1 for rows whose `date` falls in `[event_start, event_end]`, else 0 — the
-    main effect, included so a plain level shift in `d_retail` during the event isn't
-    forced into the interaction coefficients (see `fit`'s caller for why that matters).
+    main effect, included so a plain level shift in `d_retail` during the event (a drift
+    unrelated to crude) isn't forced into the interaction coefficients and misread as
+    changed pass-through. `fit_distributed_lag` picks it up automatically along with the
+    interaction columns, but a caller should confirm `event` actually appears in
+    `res.params` rather than assume it.
 
     For each lag `k` in `interact_lags` (default `0..K`), `d_up_lag{k}_event` and
     `d_down_lag{k}_event` are `d_up_lag{k}` / `d_down_lag{k}` multiplied by `event`
@@ -114,3 +118,129 @@ def build_event_interaction_design(
         print(f"  ! lag {k}: {c} flagged rows (expected {n_window})")
 
     return design
+
+
+def test_event_interaction_joint(res) -> dict:
+    """Joint F-test that every `*_event` interaction coefficient in `res` is zero.
+
+    Interaction names are discovered from `res.params.index` (suffix `_event`, excluding
+    the bare `event` main effect) rather than reconstructed from K, so this works
+    unchanged whether `res` came from Spec A (10 interaction columns) or Spec B (4) --
+    a K-derived list would test coefficients Spec B doesn't have.
+
+    This is the gatekeeper before reading any individual delta coefficient: an omnibus
+    test with lower power than `test_event_asymmetry_change`, but reading individual
+    coefficients without it reintroduces the multiple-comparisons problem.
+
+    Returns
+    -------
+    dict with `f_stat`, `p_value`, `df_num`, `df_denom`, `n_restrictions`, and
+    `interaction_names` (the parameter names actually tested).
+    """
+    interaction_names = [name for name in res.params.index if name.endswith("_event") and name != "event"]
+    restrictions = np.vstack([restriction_vector(res, positive_names={name}) for name in interaction_names])
+    f_test = res.f_test(restrictions)
+
+    return {
+        "f_stat": float(np.asarray(f_test.fvalue).item()),
+        "p_value": float(np.asarray(f_test.pvalue).item()),
+        "df_num": float(f_test.df_num),
+        "df_denom": float(f_test.df_denom),
+        "n_restrictions": len(interaction_names),
+        "interaction_names": interaction_names,
+    }
+
+
+def test_event_asymmetry_change(res) -> dict:
+    """Test whether the up-versus-down gap itself changed during the event: `+1` on
+    every `d_up_lag{k}_event`, `-1` on every `d_down_lag{k}_event`, `0` elsewhere, via
+    `res.t_test` -- same technique as `src.asymmetry.test_asymmetry` and for the same
+    reason, the interaction coefficients are correlated, so summing their standard
+    errors would drop the covariance terms.
+
+    Sign convention: a **positive** estimate means the up-versus-down gap was *wider*
+    during the event than normally -- rockets and feathers intensified under stress. A
+    **negative** estimate means the gap *narrowed* -- pass-through became more
+    symmetric. Neither is the expected answer.
+
+    Returns
+    -------
+    dict with `estimate` (Sum(delta+) - Sum(delta-)), `se`, `ci_lo`, `ci_hi`, `p_value`.
+    """
+    up_names = {name for name in res.params.index if name.startswith("d_up_lag") and name.endswith("_event")}
+    down_names = {name for name in res.params.index if name.startswith("d_down_lag") and name.endswith("_event")}
+    restriction = restriction_vector(res, positive_names=up_names, negative_names=down_names)
+
+    t = res.t_test(restriction)
+    ci = np.asarray(t.conf_int())
+
+    return {
+        "estimate": float(np.asarray(t.effect).item()),
+        "se": float(np.asarray(t.sd).item()),
+        "ci_lo": float(ci[0, 0]),
+        "ci_hi": float(ci[0, 1]),
+        "p_value": float(np.asarray(t.pvalue).item()),
+    }
+
+
+def cumulative_passthrough_by_regime(res, K: int) -> pd.DataFrame:
+    """Cumulative pass-through through each horizon h = 0..K, separately for normal
+    weeks and event weeks: `cum_up_normal(h) = Sum_{k<=h} beta+_k`,
+    `cum_up_event(h) = Sum_{k<=h} (beta+_k + delta+_k)`, and the two down equivalents --
+    each via `res.t_test` on a restriction vector, for the same correlated-coefficients
+    reason `src.asymmetry.cumulative_passthrough` uses it rather than summing SEs by
+    hand.
+
+    An event-lag `k` with no `d_up_lag{k}_event` / `d_down_lag{k}_event` column in
+    `res.params` (e.g. Spec B beyond lag 1) contributes no delta term at that lag, so
+    `cum_*_event` and `cum_*_normal` converge past the last interacted lag by
+    construction -- expected, not a finding.
+
+    Parameters
+    ----------
+    res : a fitted model with `d_up_lag0..K` / `d_down_lag0..K` and some subset of
+        `d_up_lag{k}_event` / `d_down_lag{k}_event`.
+    K : the largest baseline lag present in `res`.
+
+    Returns
+    -------
+    DataFrame with one row per horizon 0..K: `horizon`, `cum_up_normal`,
+    `cum_up_normal_lo`, `cum_up_normal_hi`, `cum_up_event`, `cum_up_event_lo`,
+    `cum_up_event_hi`, and the four `cum_down_*` equivalents (95% CI bounds throughout).
+    """
+    rows = []
+    for h in range(K + 1):
+        up_base = {f"d_up_lag{k}" for k in range(h + 1)}
+        down_base = {f"d_down_lag{k}" for k in range(h + 1)}
+        up_event = {name for k in range(h + 1) if (name := f"d_up_lag{k}_event") in res.params.index}
+        down_event = {name for k in range(h + 1) if (name := f"d_down_lag{k}_event") in res.params.index}
+
+        t_up_normal = res.t_test(restriction_vector(res, positive_names=up_base))
+        t_up_event = res.t_test(restriction_vector(res, positive_names=up_base | up_event))
+        t_down_normal = res.t_test(restriction_vector(res, positive_names=down_base))
+        t_down_event = res.t_test(restriction_vector(res, positive_names=down_base | down_event))
+
+        ci_up_normal = np.asarray(t_up_normal.conf_int())
+        ci_up_event = np.asarray(t_up_event.conf_int())
+        ci_down_normal = np.asarray(t_down_normal.conf_int())
+        ci_down_event = np.asarray(t_down_event.conf_int())
+
+        rows.append(
+            {
+                "horizon": h,
+                "cum_up_normal": float(np.asarray(t_up_normal.effect).item()),
+                "cum_up_normal_lo": float(ci_up_normal[0, 0]),
+                "cum_up_normal_hi": float(ci_up_normal[0, 1]),
+                "cum_up_event": float(np.asarray(t_up_event.effect).item()),
+                "cum_up_event_lo": float(ci_up_event[0, 0]),
+                "cum_up_event_hi": float(ci_up_event[0, 1]),
+                "cum_down_normal": float(np.asarray(t_down_normal.effect).item()),
+                "cum_down_normal_lo": float(ci_down_normal[0, 0]),
+                "cum_down_normal_hi": float(ci_down_normal[0, 1]),
+                "cum_down_event": float(np.asarray(t_down_event.effect).item()),
+                "cum_down_event_lo": float(ci_down_event[0, 0]),
+                "cum_down_event_hi": float(ci_down_event[0, 1]),
+            }
+        )
+
+    return pd.DataFrame(rows)
