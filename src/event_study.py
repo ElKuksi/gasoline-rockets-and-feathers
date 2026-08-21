@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.asymmetry import build_design_matrix, restriction_vector
+from src.asymmetry import DEFAULT_HAC_MAXLAGS, build_design_matrix, fit_distributed_lag, restriction_vector
 
 
 def build_event_interaction_design(
@@ -244,3 +244,54 @@ def cumulative_passthrough_by_regime(res, K: int) -> pd.DataFrame:
         )
 
     return pd.DataFrame(rows)
+
+
+def run_event_study(
+    retail: pd.DataFrame,
+    upstream: pd.DataFrame,
+    K: int,
+    event_start,
+    event_end,
+    label: str,
+    interact_lags: list[int] | None = None,
+    maxlags: int = DEFAULT_HAC_MAXLAGS,
+) -> dict:
+    """Build the interaction design, fit it, and run the joint and asymmetry-change tests
+    for one window/spec combination -- composition of `build_event_interaction_design`,
+    `fit_distributed_lag`, `test_event_interaction_joint`, and `test_event_asymmetry_change`,
+    no new statistics. Exists so a notebook comparing several windows (e.g. 2026 against
+    placebo episodes) loops over this once instead of repeating the same four calls per
+    window.
+
+    Parameters
+    ----------
+    retail, upstream, K, event_start, event_end, interact_lags : passed straight through
+        to `build_event_interaction_design`.
+    label : a name for this window/spec combination, carried through into the result so a
+        list of these dicts can be turned into a table without re-deriving it.
+    maxlags : passed straight through to `fit_distributed_lag`.
+
+    Returns
+    -------
+    dict with `label`, `n_event`, `n_up`, `n_down` (the event window's size and up/down
+    split), `joint` (`test_event_interaction_joint`'s result), `asymmetry_change`
+    (`test_event_asymmetry_change`'s result), and `res` (the fitted model, unwrapped, for
+    anything else a caller needs from it).
+    """
+    design = build_event_interaction_design(
+        retail, upstream, K=K, event_start=event_start, event_end=event_end, interact_lags=interact_lags
+    )
+    res = fit_distributed_lag(design, maxlags=maxlags)
+
+    n_up = int(((design["event"] == 1) & (design["d_up_lag0"] > 0)).sum())
+    n_down = int(((design["event"] == 1) & (design["d_down_lag0"] < 0)).sum())
+
+    return {
+        "label": label,
+        "n_event": int(design["event"].sum()),
+        "n_up": n_up,
+        "n_down": n_down,
+        "joint": test_event_interaction_joint(res),
+        "asymmetry_change": test_event_asymmetry_change(res),
+        "res": res,
+    }
