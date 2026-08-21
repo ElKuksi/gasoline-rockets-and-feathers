@@ -17,7 +17,7 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller, coint
 
-from src.asymmetry import DEFAULT_HAC_MAXLAGS, _restriction_vector, build_design_matrix
+from src.asymmetry import DEFAULT_HAC_MAXLAGS, restriction_vector, build_design_matrix
 from src.point_in_time import align_retail_to_upstream
 
 
@@ -175,7 +175,7 @@ def fit_ecm(design: pd.DataFrame, maxlags: int = DEFAULT_HAC_MAXLAGS):
 
 def test_adjustment_asymmetry(res) -> dict:
     """Test whether the two speed-of-adjustment coefficients differ: lambda+
-    (`u_pos_lag1`) vs lambda- (`u_neg_lag1`). Reuses `asymmetry._restriction_vector` and
+    (`u_pos_lag1`) vs lambda- (`u_neg_lag1`). Reuses `asymmetry.restriction_vector` and
     `t_test`, same technique `test_asymmetry` uses for beta+ vs beta-, same reason 
     the two coefficients are correlated, so their SEs can't just be added.
 
@@ -187,7 +187,7 @@ def test_adjustment_asymmetry(res) -> dict:
     -------
     dict with `estimate` (lambda+ minus lambda-), `se`, `ci_lo`, `ci_hi`, `p_value`.
     """
-    restriction = _restriction_vector(res, positive_names={"u_pos_lag1"}, negative_names={"u_neg_lag1"})
+    restriction = restriction_vector(res, positive_names={"u_pos_lag1"}, negative_names={"u_neg_lag1"})
     t = res.t_test(restriction)
     ci = np.asarray(t.conf_int())
 
