@@ -166,19 +166,26 @@ def test_crude_gallon_price_matches_barrel_conversion(tables):
 
 @pytest.mark.data
 def test_weekly_series_row_counts_are_in_expected_range(tables):
-    """Each weekly series (weekly-fri or weekly-mon), pulled 2010 -> now, should have
-    roughly 800-900 rows (~16 years * ~52 weeks). Outside that range signals a truncated
-    pull, a duplicated pull, or a freq mislabeled in the manifest.
+    """Each weekly series (weekly-fri or weekly-mon) should carry one row per week from
+    `fetch_series.START_DATE` to the newest date in the table, give or take a few. The
+    bounds are derived from the data's own span rather than hard-coded, so a later data
+    refresh doesn't fail this test purely for having more weeks in it — what's actually
+    being caught is a truncated pull, a duplicated pull, or a freq mislabeled in the
+    manifest, none of which scale with the sample.
     """
+    newest = max(df["date"].max() for df in tables.values())
+    expected = (newest - pd.Timestamp(START_DATE)).days // 7
+    low, high = expected - 15, expected + 15
+
     offenders = []
     for name, df in tables.items():
         weekly = df[df["freq"].isin(["weekly-fri", "weekly-mon"])]
         if weekly.empty:
             continue
         counts = weekly.groupby("series_id").size()
-        out_of_range = counts[(counts < 800) | (counts > 900)]
+        out_of_range = counts[(counts < low) | (counts > high)]
         for series_id, count in out_of_range.items():
             offenders.append({"table": name, "series_id": series_id, "rows": count})
 
     bad = pd.DataFrame(offenders)
-    assert bad.empty, f"weekly series with row count outside [800, 900]:\n{_format_offending(bad)}"
+    assert bad.empty, f"weekly series with row count outside [{low}, {high}]:\n{_format_offending(bad)}"
