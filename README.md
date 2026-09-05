@@ -351,7 +351,7 @@ The ECM R² is 0.44 for crude → wholesale and 0.51 for crude → retail.
 * **Short run:** evidence of asymmetric repricing speed.
 * **Long run:** no statistically significant evidence of asymmetric error correction.
 
-## The results support a **short-run difference in repricing speed, but not asymmetric long-run error correction**.
+The results support a **short-run difference in repricing speed, but not asymmetric long-run error correction**.
 
 ---
 
