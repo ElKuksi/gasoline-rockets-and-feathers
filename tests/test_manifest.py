@@ -12,7 +12,7 @@ from pathlib import Path
 from src.series_manifest import SERIES, HUB_BY_REGION
 
 ALLOWED_FREQ = {"daily", "weekly-fri", "weekly-mon"}
-ALLOWED_ROLE = {"core", "regional", "robustness", "placebo"}
+ALLOWED_ROLE = {"core", "regional", "robustness", "comparison"}
 
 # The fields every entry of a given `kind` must carry, beyond the common `kind`/`freq`/`role`.
 REQUIRED_KEYS_BY_KIND = {

@@ -9,12 +9,12 @@ WGASNYH,spot,weekly-fri,regional,,NY Harbor,gasoline,,conventional
 DGASNYH,spot,daily,regional,,NY Harbor,gasoline,,conventional
 WRGASLA,spot,weekly-fri,regional,,Los Angeles,gasoline,,RBOB
 DRGASLA,spot,daily,regional,,Los Angeles,gasoline,,RBOB
-WDFUELUSGULF,spot,weekly-fri,placebo,,Gulf Coast,diesel,,
-DDFUELUSGULF,spot,daily,placebo,,Gulf Coast,diesel,,
-WDFUELNYH,spot,weekly-fri,placebo,,NY Harbor,diesel,,
-DDFUELNYH,spot,daily,placebo,,NY Harbor,diesel,,
-WDFUELLA,spot,weekly-fri,placebo,,Los Angeles,diesel,,
-DDFUELLA,spot,daily,placebo,,Los Angeles,diesel,,
+WDFUELUSGULF,spot,weekly-fri,comparison,,Gulf Coast,diesel,,
+DDFUELUSGULF,spot,daily,comparison,,Gulf Coast,diesel,,
+WDFUELNYH,spot,weekly-fri,comparison,,NY Harbor,diesel,,
+DDFUELNYH,spot,daily,comparison,,NY Harbor,diesel,,
+WDFUELLA,spot,weekly-fri,comparison,,Los Angeles,diesel,,
+DDFUELLA,spot,daily,comparison,,Los Angeles,diesel,,
 GASREGW,retail,weekly-mon,core,,,gasoline,US,all formulations
 GASREGECW,retail,weekly-mon,regional,,,gasoline,PADD 1,all formulations
 GASREGMWW,retail,weekly-mon,regional,,,gasoline,PADD 2,all formulations
@@ -22,9 +22,9 @@ GASREGGCW,retail,weekly-mon,regional,,,gasoline,PADD 3,all formulations
 GASREGRMW,retail,weekly-mon,regional,,,gasoline,PADD 4,all formulations
 GASREGWCW,retail,weekly-mon,regional,,,gasoline,PADD 5,all formulations
 GASREGCOVW,retail,weekly-mon,robustness,,,gasoline,US,conventional
-GASDESW,retail,weekly-mon,placebo,,,diesel,US,
-GASDESECW,retail,weekly-mon,placebo,,,diesel,PADD 1,
-GASDESMWW,retail,weekly-mon,placebo,,,diesel,PADD 2,
-GASDESGCW,retail,weekly-mon,placebo,,,diesel,PADD 3,
-GASDESRMW,retail,weekly-mon,placebo,,,diesel,PADD 4,
-GASDESWCW,retail,weekly-mon,placebo,,,diesel,PADD 5,
+GASDESW,retail,weekly-mon,comparison,,,diesel,US,
+GASDESECW,retail,weekly-mon,comparison,,,diesel,PADD 1,
+GASDESMWW,retail,weekly-mon,comparison,,,diesel,PADD 2,
+GASDESGCW,retail,weekly-mon,comparison,,,diesel,PADD 3,
+GASDESRMW,retail,weekly-mon,comparison,,,diesel,PADD 4,
+GASDESWCW,retail,weekly-mon,comparison,,,diesel,PADD 5,

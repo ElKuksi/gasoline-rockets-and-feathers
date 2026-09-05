@@ -14,14 +14,20 @@ Every entry's `kind` determines which extra fields it carries:
 `role` records why a series is in the study, not just that it is:
 - `core`        — the primary series for its slot in the transmission chain.
 - `regional`    — a hub/PADD variant used for the regional-comparison stage.
-- `robustness`  — spec-matched alternative (e.g. conventional vs. RBOB/all-formulations)
-                   used to check a result isn't an artifact of one series definition.
-- `placebo`     — a product (diesel) with no plausible causal link to gasoline crack
-                   spreads, included to check the asymmetry effect doesn't show up where
-                   it shouldn't.
+- `robustness`  — spec-matched alternative (e.g. conventional vs. RBOB/all-formulations,
+                   or Brent for WTI) used to check a result isn't an artifact of one
+                   series definition.
+- `comparison`  — a different refined product (diesel), refined from the same crude but
+                   sold through a separate retail market. Not a placebo: diesel shares
+                   crude with gasoline, so an asymmetry appearing here is expected to be
+                   informative about how broad the pattern is, not evidence that the
+                   gasoline design picks up noise. `09` finds diesel's same-week gap is
+                   in fact *larger* than gasoline's.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pandas as pd
 
@@ -44,13 +50,13 @@ SERIES: dict[str, dict] = {
     "WRGASLA": {"kind": "spot", "freq": "weekly-fri", "role": "regional", "hub": "Los Angeles", "fuel": "gasoline", "formulation": "RBOB"},
     "DRGASLA": {"kind": "spot", "freq": "daily", "role": "regional", "hub": "Los Angeles", "fuel": "gasoline", "formulation": "RBOB"},
 
-    # --- Wholesale spot diesel (weekly-fri / daily pairs) — all placebo ------------------
-    "WDFUELUSGULF": {"kind": "spot", "freq": "weekly-fri", "role": "placebo", "hub": "Gulf Coast", "fuel": "diesel"},
-    "DDFUELUSGULF": {"kind": "spot", "freq": "daily", "role": "placebo", "hub": "Gulf Coast", "fuel": "diesel"},
-    "WDFUELNYH": {"kind": "spot", "freq": "weekly-fri", "role": "placebo", "hub": "NY Harbor", "fuel": "diesel"},
-    "DDFUELNYH": {"kind": "spot", "freq": "daily", "role": "placebo", "hub": "NY Harbor", "fuel": "diesel"},
-    "WDFUELLA": {"kind": "spot", "freq": "weekly-fri", "role": "placebo", "hub": "Los Angeles", "fuel": "diesel"},
-    "DDFUELLA": {"kind": "spot", "freq": "daily", "role": "placebo", "hub": "Los Angeles", "fuel": "diesel"},
+    # --- Wholesale spot diesel (weekly-fri / daily pairs) — all comparison ---------------
+    "WDFUELUSGULF": {"kind": "spot", "freq": "weekly-fri", "role": "comparison", "hub": "Gulf Coast", "fuel": "diesel"},
+    "DDFUELUSGULF": {"kind": "spot", "freq": "daily", "role": "comparison", "hub": "Gulf Coast", "fuel": "diesel"},
+    "WDFUELNYH": {"kind": "spot", "freq": "weekly-fri", "role": "comparison", "hub": "NY Harbor", "fuel": "diesel"},
+    "DDFUELNYH": {"kind": "spot", "freq": "daily", "role": "comparison", "hub": "NY Harbor", "fuel": "diesel"},
+    "WDFUELLA": {"kind": "spot", "freq": "weekly-fri", "role": "comparison", "hub": "Los Angeles", "fuel": "diesel"},
+    "DDFUELLA": {"kind": "spot", "freq": "daily", "role": "comparison", "hub": "Los Angeles", "fuel": "diesel"},
 
     # --- Retail gasoline, regular grade, all formulations (weekly-mon) -------------------
     "GASREGW": {"kind": "retail", "freq": "weekly-mon", "role": "core", "region": "US", "fuel": "gasoline", "formulation": "all formulations"},
@@ -63,15 +69,15 @@ SERIES: dict[str, dict] = {
     # --- Retail gasoline, conventional (weekly-mon) — spec-matched to the conventional spot series
     "GASREGCOVW": {"kind": "retail", "freq": "weekly-mon", "role": "robustness", "region": "US", "fuel": "gasoline", "formulation": "conventional"},
 
-    # --- Retail diesel (weekly-mon) — all placebo. No formulation subtype applies to
+    # --- Retail diesel (weekly-mon) — all comparison. No formulation subtype applies to
     # diesel the way conventional/all-formulations does to gasoline, so `formulation`
     # is explicitly None rather than a guessed value. -------------------------------------
-    "GASDESW": {"kind": "retail", "freq": "weekly-mon", "role": "placebo", "region": "US", "fuel": "diesel", "formulation": None},
-    "GASDESECW": {"kind": "retail", "freq": "weekly-mon", "role": "placebo", "region": "PADD 1", "fuel": "diesel", "formulation": None},
-    "GASDESMWW": {"kind": "retail", "freq": "weekly-mon", "role": "placebo", "region": "PADD 2", "fuel": "diesel", "formulation": None},
-    "GASDESGCW": {"kind": "retail", "freq": "weekly-mon", "role": "placebo", "region": "PADD 3", "fuel": "diesel", "formulation": None},
-    "GASDESRMW": {"kind": "retail", "freq": "weekly-mon", "role": "placebo", "region": "PADD 4", "fuel": "diesel", "formulation": None},
-    "GASDESWCW": {"kind": "retail", "freq": "weekly-mon", "role": "placebo", "region": "PADD 5", "fuel": "diesel", "formulation": None},
+    "GASDESW": {"kind": "retail", "freq": "weekly-mon", "role": "comparison", "region": "US", "fuel": "diesel", "formulation": None},
+    "GASDESECW": {"kind": "retail", "freq": "weekly-mon", "role": "comparison", "region": "PADD 1", "fuel": "diesel", "formulation": None},
+    "GASDESMWW": {"kind": "retail", "freq": "weekly-mon", "role": "comparison", "region": "PADD 2", "fuel": "diesel", "formulation": None},
+    "GASDESGCW": {"kind": "retail", "freq": "weekly-mon", "role": "comparison", "region": "PADD 3", "fuel": "diesel", "formulation": None},
+    "GASDESRMW": {"kind": "retail", "freq": "weekly-mon", "role": "comparison", "region": "PADD 4", "fuel": "diesel", "formulation": None},
+    "GASDESWCW": {"kind": "retail", "freq": "weekly-mon", "role": "comparison", "region": "PADD 5", "fuel": "diesel", "formulation": None},
 }
 
 
@@ -88,7 +94,7 @@ HUB_BY_REGION: dict[str, str | None] = {
 }
 
 
-def write_manifest_csv(path: str) -> None:
+def write_manifest_csv(path: str | Path) -> None:
     """Write `SERIES` to a CSV at `path`, one row per series ID.
 
     Columns are the union of every field used across all three `kind`s (`series_id`,

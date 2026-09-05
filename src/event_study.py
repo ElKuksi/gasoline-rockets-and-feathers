@@ -260,8 +260,8 @@ def run_event_study(
     for one window/spec combination -- composition of `build_event_interaction_design`,
     `fit_distributed_lag`, `test_event_interaction_joint`, and `test_event_asymmetry_change`,
     no new statistics. Exists so a notebook comparing several windows (e.g. 2026 against
-    placebo episodes) loops over this once instead of repeating the same four calls per
-    window.
+    the 2022/2020 comparison episodes) loops over this once instead of repeating the same
+    four calls per window.
 
     Parameters
     ----------

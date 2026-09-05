@@ -25,7 +25,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.fred_client import parse_observations
-from src.series_manifest import SERIES
+from src.series_manifest import SERIES, write_manifest_csv
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = _REPO_ROOT / "data" / "raw"
@@ -143,6 +143,11 @@ def main() -> None:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     for name, df in tables.items():
         df.to_csv(PROCESSED_DIR / f"{name}.csv", index=False)
+
+    # series_manifest.csv is the manifest as `02_data_pipeline.ipynb` reads it back. Written
+    # here rather than left to a manual call, so editing SERIES and re-running the pipeline
+    # can't leave a stale catalogue on disk that still looks current.
+    write_manifest_csv(PROCESSED_DIR / "series_manifest.csv")
 
     print()
     print_summary(tables)
